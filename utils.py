@@ -1,6 +1,6 @@
 import numpy as np
 import os
-
+import re
 import torch
 from typing import List, Tuple
 from tqdm import tqdm
@@ -17,9 +17,14 @@ import numpy as np
 import matplotlib.colors as colors
 from sklearn.metrics import precision_recall_curve
 
+import nltk
+from nltk.corpus import wordnet as wn
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 stop_words = set(stopwords.words('english'))
+import contractions
+from nltk.stem import WordNetLemmatizer 
+lemmatizer = WordNetLemmatizer()
 
 color2num = dict(gray=30,
                  red=31,
@@ -733,3 +738,94 @@ def shift_spottings(ann_types, ann_times, fps):
             new_times.append(ann_times[idx])
             print(f'WARNING invalid type {ann_t}, no shift applied')
     return new_times
+
+def fix_contractions(text):
+    """Fix contractions in the given text."""
+    fixed_text = contractions.fix(text)   
+    return fixed_text
+
+def remove_punctuation(text):
+    """Remove punctuation from the given text."""
+    # Define a regular expression pattern to match punctuation
+    punctuation_pattern = r'[^\w\s]'  # Matches any character that is not a word character or whitespace
+
+    # Use re.sub() to replace punctuation with an empty string
+    text_without_punctuation = re.sub(punctuation_pattern, '', text)
+
+    return text_without_punctuation
+
+def classify_have(sentence):
+    """Classify whether 'have' is a verb or an auxiliary verb in the given sentence."""
+    # Tokenize the sentence into words
+    words = word_tokenize(sentence)
+
+    # Perform part-of-speech tagging
+    tagged_words = nltk.pos_tag(words)
+
+    new_sentence = []
+    # Check if 'have' is tagged as a verb (VB) or an auxiliary verb (VBP or VBZ)
+    for i, (word, tag) in enumerate(tagged_words):
+        if word == 'have' and i < len(tagged_words) - 1:
+            next_word, next_tag = tagged_words[i + 1]
+            if next_tag.startswith('V'):
+                continue
+            else:
+                new_sentence.append(word)
+        else:
+            new_sentence.append(word)
+    return new_sentence
+
+def lemmatize_word(word):
+    """Lemmatize the given word."""
+    lemmatized_word = lemmatizer.lemmatize(word)
+    return lemmatized_word
+
+def convert_verb_tense(sentence, target_tense):
+    """Convert the tense of verbs in the given sentence to the target tense."""
+    lemmatizer = WordNetLemmatizer()
+
+    # Tokenize the sentence into words
+    words = word_tokenize(sentence)
+
+    # Perform part-of-speech tagging
+    tagged_words = nltk.pos_tag(words)
+
+    # Convert verb tenses based on the target tense
+    converted_sentence = []
+    for word, tag in tagged_words:
+        if tag.startswith('VB'):  # Check if the word is a verb
+            # Lemmatize the verb
+            lemma = lemmatizer.lemmatize(word, pos='v')
+
+            # Convert verb tense based on the target tense
+            if target_tense == 'present':
+                converted_word = lemma
+            elif target_tense == 'past':
+                if tag == 'VBP':  # Present tense
+                    converted_word = nltk.WordNetLemmatizer().lemmatize(word, pos='v') + 'ed'
+                else:
+                    converted_word = lemma
+            else:
+                # Add more tense conversion rules as needed
+                converted_word = lemma
+
+        else:
+            converted_word = word
+
+        converted_sentence.append(converted_word)
+
+    return converted_sentence
+
+def nearest_dilation_1d(input_tensor, dilation_factor):
+    input_tensor = input_tensor.cuda()
+    input_tensor = input_tensor.squeeze(-1)
+    output_tensor = torch.zeros_like(input_tensor)
+    for i, mat in enumerate(input_tensor):
+        indices = (mat == 1).nonzero(as_tuple=False)
+        if len(indices) > 0:
+            start_idx = max(0, indices[0]-dilation_factor)
+            end_idx = min(len(mat), indices[-1]+dilation_factor+1)
+            output_tensor[i, start_idx:end_idx] = 1
+        else:
+            output_tensor[i] = torch.ones_like(input_tensor[i])
+    return output_tensor.unsqueeze(-1)

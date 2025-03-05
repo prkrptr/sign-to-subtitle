@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from utils import remove_stopwords, get_feature_interval, shift_spottings
+from utils import fix_contractions, remove_punctuation, classify_have, lemmatize_word, convert_verb_tense
 
 from scipy import io
 import webvtt
@@ -240,13 +241,13 @@ class VideoTextDataset(Dataset):
 
     def __getitem__(self, index):
 
-        if self.opts.shuffle_getitem: 
+        if self.opts.shuffle_getitem and self.mode == "train":
             index = self.shuffled_indices[index]
 
         out_dict = {}
 
         ### Load all information
-        text = self.data_dict["txt"][index]
+        text = self.data_dict["txt"][index].lower()
         ep = self.data_dict["ep"][index]
         pr_fr = self.data_dict["pr_fr"][index]
         pr_to = self.data_dict["pr_to"][index]
@@ -264,10 +265,11 @@ class VideoTextDataset(Dataset):
         # in the fixed_feat_len=0 version the start and end of the window are just pr_fr and pr_to
 
         ### Jitter prior 
-        if self.opts.jitter_location:
-            pr_fr, pr_to = self.jitter_pr_fr_to(pr_fr, pr_to)
-        if self.opts.jitter_width_secs>0:
-            pr_fr, pr_to = self.jitter_width(pr_fr, pr_to)
+        if self.mode == "train":
+            if self.opts.jitter_location:
+                pr_fr, pr_to = self.jitter_pr_fr_to(pr_fr, pr_to)
+            if self.opts.jitter_width_secs>0:
+                pr_fr, pr_to = self.jitter_width(pr_fr, pr_to)
 
         ### Set length of prior window
         ### Pad window to fixed_feat_len width and shift prior within window
@@ -324,7 +326,7 @@ class VideoTextDataset(Dataset):
         # random padding around ground truth or prior 
         window_centre = (pr_to+pr_fr)/2
         if random.random() > self.opts.negatives_percent:
-            if self.opts.centre_window: # no shift
+            if self.opts.centre_window or self.mode != "train": # no shift
                 shift = 0
             else:
                 shift = random.uniform(-0.5*self.opts.fixed_feat_len, 0.5*self.opts.fixed_feat_len)
@@ -408,14 +410,15 @@ class VideoTextDataset(Dataset):
     ### Word augmentation: shuffling and drop
     def augment_text(self, words):
         augmented_words = []
-        if self.opts.drop_words_subs > 0:
-            for w in words:
-                # with 85% probability keep the word
-                if random.random() > self.opts.drop_words_subs:
-                    augmented_words.append(w)
-        if self.opts.shuffle_words_subs > 0:
-            if random.random() < self.opts.shuffle_words_subs:
-                random.shuffle(augmented_words)
+        if self.mode == "train":
+            if self.opts.drop_words_subs > 0:
+                for w in words:
+                    # with 85% probability keep the word
+                    if random.random() > self.opts.drop_words_subs:
+                        augmented_words.append(w)
+            if self.opts.shuffle_words_subs > 0:
+                if random.random() < self.opts.shuffle_words_subs:
+                    random.shuffle(augmented_words)
         if len(augmented_words) == 0:
             augmented_words = words
         text = ' '.join(augmented_words)
@@ -424,8 +427,8 @@ class VideoTextDataset(Dataset):
     def clean_text(self,arr):
         if self.opts.remove_stopwords: 
             arr = [w for w in arr if w not in stop_words]
-        ## remove possessifs
-        arr = [w.replace("'s", "").replace("'","") for w in arr]
+            ## remove possessifs
+            arr = [w.replace("'s", "").replace("'","") for w in arr]
         if self.opts.lemmatize_words:
             # TODO: change this lemmatization function
             try: 
@@ -434,6 +437,26 @@ class VideoTextDataset(Dataset):
                 arr = arr
         if self.opts.stem_words:
             arr = [stemmer.stem(w) for w in arr]
+
+        if self.opts.preprocess_words:
+            refined_arr = ' '.join(arr)
+            refined_arr = fix_contractions(refined_arr)
+            # remove punctuation
+            refined_arr = remove_punctuation(refined_arr)
+
+            # lammaize words
+            arr = convert_verb_tense(refined_arr, 'present')
+
+            arr = [w for w in arr if w not in ['a', 'an', 'the']]
+
+        if self.opts.remove_be:
+            arr = [w for w in arr if w not in ['be']]
+
+        if self.opts.remove_have:
+            # check if 'have' is in sentence
+            refined_arr = ' '.join(arr)
+            arr = classify_have(refined_arr)
+
         return arr
 
     def times_to_labels_vec(self, start_end_sample, start_end_window, samp_feats): 

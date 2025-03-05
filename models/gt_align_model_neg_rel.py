@@ -1,102 +1,6 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from .gt_align_model import *
 
-from .bert_text_model import BertTextModel
-import numpy as np
-from utils import calc_1d_iou, calc_align_metrics
-
-import math
-
-class PositionalEncoding(nn.Module):
-
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        return self.dropout(x)
-
-class MLP(nn.Module):
-    """ Very simple multi-layer perceptron (also called FFN)"""
-
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
-        super().__init__()
-        self.num_layers = num_layers
-        h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
-
-    def forward(self, x):
-        for i, layer in enumerate(self.layers):
-            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
-        return x
-
-class GtInvAlignTransformer(nn.Module):
-    """
-    Alignment model taking as input a video feature sequence and a text sentence
-
-    # some code borrowed from DETR https://github.com/facebookresearch/detr/blob/master/models/detr.py
-    """
-
-    def __init__(self, opts, dataloader):
-        super().__init__()
-
-        self.opts = opts
-        self.dataloader = dataloader
-            
-        # TODO: Add as params 
-        self.d_vid = 1024 # I3D feature dim 
-        self.d_txt = 768 # BERT feature dim
-
-        # text embedding model 
-        if not self.opts.finetune_bert:
-            self.text_model = BertTextModel().requires_grad_(False)
-        else:
-            self.text_model = BertTextModel()
-
-        # input projections for 2 modalities 
-        self.input_proj_vid = nn.Conv1d(self.d_vid, opts.d_model, kernel_size=1)
-        self.input_proj_txt = nn.Conv1d(self.d_txt, opts.d_model, kernel_size=1)
-
-        # embedding for original subtitle 
-        reproject_dim = opts.d_model
-        if self.opts.concatenate_prior:
-            self.ref_vec_embedding = nn.Linear(1, opts.d_model)
-            reproject_dim += opts.d_model
-
-        self.reproject_concatenate = nn.Linear(reproject_dim, opts.d_model)
-
-        # self positional enc
-        self.positional_enc = PositionalEncoding(d_model=opts.d_model)
-
-        # transformer
-        self.transformer = nn.Transformer(
-                                          num_encoder_layers=opts.n_enc_layers,
-                                          num_decoder_layers=opts.n_dec_layers,
-                                          nhead=opts.n_heads,
-                                          d_model=opts.d_model,
-                                          dropout=opts.transformer_dropout,
-                                          )
-        if getattr(self.opts, 'freeze_encoder', False):
-            self.transformer.encoder.requires_grad_(False)
-        # FC 
-        if self.opts.pos_weight > 0:
-            self.loss = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(self.opts.pos_weight))
-        else:
-            self.loss = nn.BCEWithLogitsLoss()
-        n_classes = 1
-
-        self.fc = MLP(input_dim=opts.d_model, hidden_dim=256, output_dim=n_classes, num_layers=3)
-
+class GtInvAlignTransformer_neg_rel(GtInvAlignTransformer):
     def forward(self, data_dict):
 
         out = {}
@@ -144,7 +48,9 @@ class GtInvAlignTransformer(nn.Module):
         vid_emb = self.positional_enc(vid_emb)
 
         # inverted transformer
-        trf_output = self.transformer(src=txt_emb, tgt=vid_emb) # (B, C)
+        # trf_output = self.transformer(src=txt_emb, tgt=vid_emb) # (B, C)
+        memory = self.transformer.encoder(txt_emb)
+        trf_output = self.transformer.decoder(vid_emb, memory) # (T, B, C)
 
         hs = trf_output
 
@@ -156,6 +62,26 @@ class GtInvAlignTransformer(nn.Module):
         loss = self.loss(lin_layer, target_vector)
 
         out['loss'] = loss
+
+        if getattr(self.opts, 'neg_lambda', 0) > 0:
+            neg_vid_emb = torch.cat([vid_emb[:,1:], vid_emb[:,:1]], dim=1)
+            neg_trf_output = self.transformer.decoder(neg_vid_emb, memory)
+            neg_hs = neg_trf_output.permute([1,0,2]) # B, T, C
+            neg_lin_layer = self.fc(neg_hs).squeeze(-1)
+            out['neg_loss'] = self.loss(neg_lin_layer, torch.zeros_like(target_vector))
+
+            if getattr(self.opts, 'rel_lambda', 0) > 0:
+                target_vector_cat = torch.cat([target_vector, torch.zeros_like(target_vector)], dim=-1)
+                lin_layer_cat = torch.cat([lin_layer, neg_lin_layer], dim=-1)
+                # numerical stability
+                logits_cat = lin_layer_cat - torch.max(lin_layer_cat, dim=1, keepdim=True)[0]
+                # softmax
+                exp_logits_cat = torch.exp(logits_cat)
+                log_prob_cat = logits_cat - torch.log(exp_logits_cat.sum(1, keepdim=True) + 1e-6)
+                mean_log_prob_cat = (target_vector_cat * log_prob_cat).sum(1) / (target_vector_cat.sum(1) + 1e-6)
+                out['rel_loss'] = - mean_log_prob_cat
+        else:
+            assert getattr(self.opts, 'rel_lambda', 0) == 0
 
         outputs = torch.sigmoid(lin_layer.detach())
 
@@ -189,4 +115,3 @@ class GtInvAlignTransformer(nn.Module):
                 out.update( {'correct_b': correct_b, 'tp_b': tp_b, 'fp_b': fp_b, 'fn_b': fn_b, 'total_frames_b': total_b} )
 
         return out
-

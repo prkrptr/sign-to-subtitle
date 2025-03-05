@@ -125,10 +125,16 @@ def main(opts):
                         scorefile.write("{} | {}\n".format(res_tr, res_val))
                         scorefile.flush()
 
-                        print('saving model ', "model_{:010d}.pt".format(trainer.global_step))
-                        model_ckpt = "model_{:010d}.pt".format(trainer.global_step)
+                        # print('saving model ', "model_{:010d}.pt".format(trainer.global_step))
+                        # model_ckpt = "model_{:010d}.pt".format(trainer.global_step)
+                        # trainer.save_checkpoint(model_ckpt)
+                        print('saving model...')
+                        model_ckpt = "model_last.pt"
                         trainer.save_checkpoint(model_ckpt)
-                        
+                        if val_metric >= best_metric:
+                            best_metric = val_metric
+                            print('saving best model ', "model_best.pt")
+                            trainer.save_checkpoint("model_best.pt")
 
             scorefile.close()
         else:

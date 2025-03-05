@@ -110,14 +110,17 @@ def postprocessing_remove_intersections(test_file, path_subtitles = '/scratch/sh
         active_frame_indices_noconflict = active_frame_indices
 
         cost_matrix = 1 - cost_matrix
+        cost_matrix_ = np.ones((cost_matrix.shape[0]+1, cost_matrix.shape[1]+1))
+        cost_matrix_[1:,1:] = cost_matrix
+        cost_matrix = cost_matrix_
 
-        DTW = np.ones((len(active_frame_indices_noconflict),len(chrono_order_noconflict)))*np.inf
+        DTW = np.ones((1+len(active_frame_indices_noconflict),1+len(chrono_order_noconflict)))*np.inf
         DTW[0,0] = 0
         dict_neighbours = ['0_0']
         neighbours = [[0,0]]
 
-        for i in tqdm(range(1,len(active_frame_indices_noconflict))):
-            for j in range(1,len(chrono_order_noconflict)):
+        for i in tqdm(range(1,1+len(active_frame_indices_noconflict))):
+            for j in range(1,1+len(chrono_order_noconflict)):
                 dict_neighbours.append(str(i)+'_' +str(j))
                 cost = cost_matrix[i,j]
                 DTW[i, j] = cost + np.min((DTW[i - 1, j - 1], DTW[i-1, j]))
@@ -130,21 +133,21 @@ def postprocessing_remove_intersections(test_file, path_subtitles = '/scratch/sh
 
         dc_neigh = dict(zip(dict_neighbours, neighbours))
 
-        Y = np.zeros((len(active_frame_indices_noconflict),len(chrono_order_noconflict)))
+        Y = np.zeros((1+len(active_frame_indices_noconflict),1+len(chrono_order_noconflict)))
         Y[-1,-1]=1
-        Y[0,0]=1
-        i=len(active_frame_indices_noconflict)-1
-        j=len(chrono_order_noconflict)-1
+        Y[1,1]=1
+        i=len(active_frame_indices_noconflict)
+        j=len(chrono_order_noconflict)
         newi = 1
         newj = 1
-        while (i!=0 and j!=0):
+        while (i!=1 and j!=1):
             newi, newj = dc_neigh[str(i) + '_' + str(j)]
             Y[newi, newj] = 1
             i = newi
             j = newj
 
         ## reinsert conflicts in Y 
-        Y_orig = Y
+        Y_orig = Y[1:,1:]
         # Y_orig = binary_cost_matrix
         # print(Y_orig.shape)
         # for i in range(len(row_conflicts)): 

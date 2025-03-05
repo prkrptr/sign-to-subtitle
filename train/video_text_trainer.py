@@ -11,6 +11,7 @@ from tqdm import tqdm
 from utils import F1Logger
 from utils import seconds_to_string, F1Logger
 from utils import colorize
+from utils import nearest_dilation_1d
 
 from misc.evaluate_sub_alignment import eval_subtitle_alignment
 
@@ -48,6 +49,9 @@ class VideoTextTrainer(BaseTrainer):
         seen_out_files = []
         
         for b_id, batch_sample in enumerate(dataloader): 
+            expand_pr_dim = getattr(self.opts, 'expand_pr_step', 0)
+            if expand_pr_dim > 0:
+                batch_sample['pr_expand_vec'] = nearest_dilation_1d(batch_sample['pr_vec'], expand_pr_dim)
 
             self.model.zero_grad()
             model_out = self.model.forward(batch_sample)
@@ -140,7 +144,11 @@ class VideoTextTrainer(BaseTrainer):
             self.step_tic = time.time()
 
             # ------------------------- Loss  -------------------------
-            loss = model_out['loss'].mean()
+            # loss = model_out['loss'].mean()
+            loss = torch.zeros(1).to(self.device)
+            for k, v in model_out.items():
+                if 'loss' in k:
+                    loss += v.mean() * getattr(self.opts, k.replace('loss', 'lambda'), 1)
 
             # ------------------------- Backprop  -------------------------
             if mode == 'train':
@@ -153,8 +161,10 @@ class VideoTextTrainer(BaseTrainer):
                 self.optimizer.step()
 
             # ------------------------- Metrics  -------------------------
-
-            metrics_dict['loss'] += model_out['loss'].mean().detach().cpu().item()
+            # metrics_dict['loss'] += model_out['loss'].mean().detach().cpu().item()
+            for k, v in model_out.items():
+                if 'loss' in k:
+                    metrics_dict[k] += v.mean().detach().cpu().item()
             if 'iou' in model_out:
                 metrics_dict['iou'] += model_out['iou']
             if 'base_iou' in model_out:

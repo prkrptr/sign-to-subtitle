@@ -1,3 +1,4 @@
+import os
 import configargparse
 
 def save_opts(args, fn):
@@ -71,6 +72,7 @@ def load_opts():
     parser.add_argument('--gt_subs_delta_bias', type=float, default=0, help='Bias to add to GT subtitles in seconds')
     parser.add_argument('--words_delta_bias', type=float, default=0, help='Bias to add to words in seconds')
     parser.add_argument('--shift_spottings', type=bool, default=True, help='Shift spottings to pre-defined location')
+    parser.add_argument('--expand_pr_step', type=int, default=0, help='Expand prior step in seconds')
 
     # word spotting parameters
     parser.add_argument('--pad_annot', type=float, default=0.5, help='Padding in seconds (left and right) of word spotting annotation times')
@@ -100,6 +102,9 @@ def load_opts():
     parser.add_argument('--remove_stopwords', type = bool, default=True, help='Remove stopwords before further text processing')
     parser.add_argument('--shuffle_words_subs', type = float, default = 0, help = "Percentage of subtitles to shuffle words in subtitles during training")
     parser.add_argument('--drop_words_subs', type = float, default = 0, help = "Percentage to drop words in subtitles")
+    parser.add_argument('--preprocess_words', type = bool, default=False, help='Preprocess words before further text processing')
+    parser.add_argument('--remove_be', type = bool, default=False, help='Remove "be" before further text processing')
+    parser.add_argument('--remove_have', type = bool, default=False, help='Remove "have" before further text processing')
 
     # feature augmentation
     parser.add_argument('--drop_feats', type = float, default = 0, help = "Percentage to drop visual features")
@@ -115,6 +120,9 @@ def load_opts():
 
     parser.add_argument('--concatenate_prior', type=bool, default=True, help='Concatenate prior location')
     parser.add_argument('--finetune_bert', type=bool, default=False, help='Finetune Bert')
+    parser.add_argument('--freeze_encoder', type=bool, default=False, help='Freeze Transformer Encoder')
+    parser.add_argument('--neg_lambda', type=float, default=0., help='negative alignment loss weight')
+    parser.add_argument('--rel_lambda', type=float, default=0., help='relative alignment loss weight')
 
     # --- trainer
     parser.add_argument('--optimizer', type=str, default='adam', help='adam or adamw optimizer')
@@ -133,11 +141,9 @@ def load_opts():
     parser.add_argument('--save_probs', type = bool, default = False, help = "Save CE softmax outputs ")
     parser.add_argument("--dtw_postpro", type = bool, default = False, help='Run DTW postprocessing')
 
-    parser.add_argument('--save_probs_folder', type=str, default='inference_output/probabilities', help='Folder to save probabilities')
-    parser.add_argument('--save_subs_folder', type=str, default='inference_output/subtitles', help='Folder to save subtitles')
-    parser.add_argument('--save_postpro_subs_folder', type=str, default='inference_output/subtitles_postprocessing', help='Folder to save subtitles with postprocessing to remove overlaps')
-
-
     args = parser.parse_args()
+    args.save_probs_folder = os.path.join(args.save_path, 'probabilities')
+    args.save_subs_folder = os.path.join(args.save_path, 'subtitles')
+    args.save_postpro_subs_folder = os.path.join(args.save_path, 'subtitles_postprocessing')
 
     return args

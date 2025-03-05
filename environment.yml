@@ -1,0 +1,29 @@
+name: sub-align
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch=2.1.1
+  - pytorch-cuda=11.8
+  - nltk
+  - conda-forge::nltk_data
+  - pip
+  - pip:
+    - beartype==0.18.2
+    - ConfigArgParse==1.2.3
+    - jiwer==2.2.0
+    - matplotlib==3.8.2
+    - nltk==3.9.1
+    - numpy==1.26.2
+    - scikit-learn==1.3.2
+    - scipy==1.11.4
+    - six==1.16.0
+    - tensorboardX==2.6.2.2
+    - tqdm==4.66.1
+    - transformers==4.35.2
+    - webvtt_py==0.4.6
+    - contractions==0.1.73
+
+# python -m nltk.downloader all

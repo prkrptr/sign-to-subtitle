@@ -22,8 +22,8 @@ python main.py \
 --save_vtt True \
 --save_probs True \
 --dtw_postpro True \
---resume $SAVE_DIR/finetune/checkpoints/model_best.pt \
---save_path $SAVE_DIR/test \
+--resume $SAVE_DIR/finetune_self_training/checkpoints/model_best.pt \
+--save_path $SAVE_DIR/test_self_training \
 \
 --remove_stopwords False \
 --preprocess_words True \
@@ -34,3 +34,5 @@ python main.py \
 
 # For debug
 # --random_subset_data 5 \
+
+# Computed over 2642663 frames, 20338 sentences - Frame-level accuracy: 77.22 F1@0.10: 81.39 F1@0.25: 75.03 F1@0.50: 63.81
