@@ -40,7 +40,7 @@ def load_opts():
     parser.add_argument('--random_subset_data', type = int, default = 1e9, help = "If N < number of videos, random subset of N videos from training data")
     parser.add_argument('--random_subset_data_seed', type = int, default = 123, help = "Seed of random subset of training data")
     
-    # load subtitles or load words
+    # load subtitles or load words
     parser.add_argument('--load_subtitles', type = bool, default=True, help='Load subtitles texts and times (e.g. for training on subtitles)')
     parser.add_argument('--load_words', type = bool, default=False, help='Load word spottings texts and times (e.g. for word pre-training)')
     parser.add_argument('--load_features',  type = bool, default=True, help='Load features')
@@ -78,7 +78,7 @@ def load_opts():
     parser.add_argument('--pad_annot', type=float, default=0.5, help='Padding in seconds (left and right) of word spotting annotation times')
     parser.add_argument('--conf_thresh_annot', type=float, default=0.8, help='Confidence threshold for word spottings (excluding A, E, N)')
 
-    # percentage of negative windows to add
+    # percentage of negative windows to add
     parser.add_argument('--negatives_percent', type = float, default = 0, help = "Proportion of negatives (GT=0) to add")
     parser.add_argument('--centre_window', action='store_true', help='Centre search window around prior')
 
@@ -110,7 +110,7 @@ def load_opts():
     parser.add_argument('--drop_feats', type = float, default = 0, help = "Percentage to drop visual features")
     parser.add_argument('--shuffle_feats', type = float, default = 0, help = "Percentage to shuffle visual features")
 
-    # --- model parameters
+    # --- model parameters
     parser.add_argument('--d_model', type=int, default=512, help='Transformer model dimension')
     parser.add_argument('--n_enc_layers', type=int, default=2, help='Transformer number encoder layers')
     parser.add_argument('--n_dec_layers', type=int, default=2, help='Transformer number decoder layers')

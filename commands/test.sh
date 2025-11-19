@@ -1,17 +1,17 @@
-GPU_ID=0
-NUM_WORKERS=32
+GPU_ID=-1
+NUM_WORKERS=8
 
-SAVE_DIR=inference_output
+SAVE_DIR="inference_output"
 
-FEATURES_PATH=/mnt/lynx2/datasets/bobsl/bobsl/features/i3d_c2281_16f_m8_-15_4_d0.8_-3_22
-GT_SUB_PATH=/mnt/lynx2/datasets/bobsl/bobsl/subtitles/manually-aligned
-PR_SUB_PATH=/mnt/lynx2/datasets/bobsl/bobsl/subtitles/audio-aligned-heuristic-correction
+FEATURES_PATH="C:/Users/karlw/Desktop/tei stuff/thesis/SAT_sign-to-subtitle/data/0902_output" 
+GT_SUB_PATH="C:/Users/karlw/Desktop/tei stuff/thesis/SAT_sign-to-subtitle/data/vtt_0902"
+PR_SUB_PATH="C:/Users/karlw/Desktop/tei stuff/thesis/SAT_sign-to-subtitle/data/vtt_0902"
 
 OMP_NUM_THREADS=1 \
 python main.py \
---features_path $FEATURES_PATH \
---gt_sub_path $GT_SUB_PATH \
---pr_sub_path $PR_SUB_PATH \
+--features_path "$FEATURES_PATH" \
+--gt_sub_path "$GT_SUB_PATH" \
+--pr_sub_path "$PR_SUB_PATH" \
 --gpu_id $GPU_ID \
 --n_workers $NUM_WORKERS \
 --batch_size 1 \
@@ -21,16 +21,12 @@ python main.py \
 --test_only \
 --save_vtt True \
 --save_probs True \
---dtw_postpro True \
---resume $SAVE_DIR/finetune/checkpoints/model_best.pt \
---save_path $SAVE_DIR/test \
-\
+--dtw_postpro False \
+--resume "C:/Users/karlw/Desktop/tei stuff/thesis/SAT_sign-to-subtitle/model_best.pt" \
+--save_path "$SAVE_DIR/test" \
 --remove_stopwords False \
 --preprocess_words True \
 --remove_be True \
 --remove_have True \
-\
 --expand_pr_step 20 \
-
-# For debug
-# --random_subset_data 5 \
+--test_videos_txt "data/for_testing.txt"

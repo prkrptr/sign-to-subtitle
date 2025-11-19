@@ -1,0 +1,17 @@
+import os
+
+NPY_FOLDER = r"C:\Users\karlw\Desktop\tei stuff\thesis\SAT_sign-to-subtitle\data\0902_output"
+OUTPUT_TXT = r"C:\Users\karlw\Desktop\tei stuff\thesis\SAT_sign-to-subtitle\data\for_testing.txt"
+
+# Get all filenames (without extensions) in the folder
+video_files = [
+    f for f in sorted(os.listdir(NPY_FOLDER))
+    if os.path.isfile(os.path.join(NPY_FOLDER, f))
+]
+
+with open(OUTPUT_TXT, "w") as f:
+    for file_name in video_files:
+        name_no_ext = os.path.splitext(file_name)[0]  # remove extension
+        f.write(f"{name_no_ext}\n")  # remove "0902_output\" prefix
+
+print(f"✅ Generated {OUTPUT_TXT} with {len(video_files)} entries.")
